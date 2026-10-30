@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: aquashift_postgis
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: aquashift_secure_password
+      POSTGRES_DB: aquashift_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aquashift_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: aquashift_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - aquashift_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aquashift_backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://postgres:aquashift_secure_password@db:5432/aquashift_db
+      - ENVIRONMENT=production
+      - DEBUG=False
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - aquashift_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: aquashift_frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - aquashift_net
+
+volumes:
+  pgdata:
+
+networks:
+  aquashift_net:
+    driver: bridge
